@@ -1,0 +1,139 @@
+import os
+import glob
+import json
+import numpy as np
+import re
+
+DATASETS_DIR = "datasets/APIs"
+ORIGINAL_DATASET = "Test_full.npz"
+THRESHOLD = 0.8
+
+def get_base_name(filename):
+    # Extract the MD5/SHA1/SHA256 hash part from the filename
+    match = re.search(r'([a-fA-F0-9]{32,64})', filename)
+    if match:
+        return match.group(1)
+    return filename.split('.exe')[0] + '.exe'
+
+def calculate_jaccard_similarity(set1, set2):
+    if not set1 and not set2:
+        return 1.0
+    intersection = len(set1.intersection(set2))
+    union = len(set1.union(set2))
+    return float(intersection) / union if union > 0 else 0.0
+
+def get_features(data, key_choices):
+    for key in key_choices:
+        if key in data.files:
+            val = data[key]
+            return val.tolist() if hasattr(val, 'tolist') else list(val)
+    # Return empty list if no keys matched
+    return [[] for _ in range(len(data['name']))]
+
+def main():
+    original_path = os.path.join(DATASETS_DIR, ORIGINAL_DATASET)
+    if not os.path.exists(original_path):
+        print(f"[!] Original dataset not found: {original_path}")
+        return
+
+    print(f"[*] Loading original dataset: {ORIGINAL_DATASET}")
+    orig_data = np.load(original_path, allow_pickle=True)
+    
+    orig_names = orig_data['name'].tolist() if hasattr(orig_data['name'], 'tolist') else list(orig_data['name'])
+    
+    # Try api_cuckoo or signatures
+    feature_keys = ['api_cuckoo', 'signatures', 'api']
+    orig_sigs = get_features(orig_data, feature_keys)
+    
+    # Map base name to a set of signatures
+    original_signatures = {}
+    for name, sigs in zip(orig_names, orig_sigs):
+        if sigs is None:
+            sigs = []
+        elif hasattr(sigs, 'tolist'):
+            sigs = sigs.tolist()
+        base = get_base_name(name)
+        original_signatures[base] = set(sigs)
+        
+    print(f"    Loaded {len(original_signatures)} original samples.")
+
+    # Find all adversarial datasets
+    npz_files = glob.glob(os.path.join(DATASETS_DIR, "*.npz"))
+    
+    detailed_reports = {}
+    summaries = {}
+
+    for npz_file in npz_files:
+        dataset_name = os.path.basename(npz_file)
+        if dataset_name == ORIGINAL_DATASET or dataset_name == "Target_full.npz":
+            continue
+            
+        print(f"\n[*] Processing adversarial dataset: {dataset_name}")
+        adv_data = np.load(npz_file, allow_pickle=True)
+        adv_names = adv_data['name'].tolist() if hasattr(adv_data['name'], 'tolist') else list(adv_data['name'])
+        adv_sigs = get_features(adv_data, feature_keys)
+        
+        dataset_report = {}
+        integrity_count = 0
+        total_samples = 0
+        
+        for adv_name, sigs in zip(adv_names, adv_sigs):
+            if sigs is None:
+                sigs = []
+            elif hasattr(sigs, 'tolist'):
+                sigs = sigs.tolist()
+                
+            adv_sig_set = set(sigs)
+            base_name = get_base_name(adv_name)
+            
+            if base_name in original_signatures:
+                total_samples += 1
+                orig_sig_set = original_signatures[base_name]
+                similarity = calculate_jaccard_similarity(orig_sig_set, adv_sig_set)
+                
+                is_functional = similarity > THRESHOLD
+                if is_functional:
+                    integrity_count += 1
+                    
+                dataset_report[adv_name] = {
+                    "base_name": base_name,
+                    "similarity": similarity,
+                    "is_functional": is_functional,
+                    "orig_sig_count": len(orig_sig_set),
+                    "adv_sig_count": len(adv_sig_set)
+                }
+            else:
+                # Base name not found in original dataset, skip or mark as 0
+                dataset_report[adv_name] = {
+                    "base_name": base_name,
+                    "similarity": 0.0,
+                    "is_functional": False,
+                    "error": "Original sample not found"
+                }
+                
+        detailed_reports[dataset_name] = dataset_report
+        percentage = (integrity_count / total_samples * 100) if total_samples > 0 else 0.0
+        
+        summaries[dataset_name] = {
+            "total_samples": total_samples,
+            "integrity_count": integrity_count,
+            "percentage": percentage
+        }
+        
+        print(f"    Total Samples: {total_samples}")
+        print(f"    Integrity Count: {integrity_count}")
+        print(f"    Percentage: {percentage:.2f}%")
+
+    # Save details
+    print("\n[*] Saving detailed reports to mab_detailed_reports.json")
+    with open("mab_detailed_reports.json", "w") as f:
+        json.dump(detailed_reports, f, indent=4)
+        
+    print("[*] Saving summaries to mab_summary.json")
+    with open("mab_summary.json", "w") as f:
+        json.dump(summaries, f, indent=4)
+        
+    print("\n[+] Done!")
+
+if __name__ == "__main__":
+    main()

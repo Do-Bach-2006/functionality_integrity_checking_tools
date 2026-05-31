@@ -1,0 +1,30 @@
+# Environments
+venv/
+env/
+.env
+
+# Datasets
+datasets/
+*.npz
+
+# Generated Reports & Logs
+*.log
+*.json
+
+# Compiled C++ Extensions & Build Artifacts
+*.so
+fast_sw
+build/
+dist/
+*.egg-info/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE / Personal Configs
+.vscode/
+.idea/
+*.swp
+.DS_Store
