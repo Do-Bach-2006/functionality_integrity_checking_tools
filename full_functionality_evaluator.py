@@ -463,6 +463,7 @@ def main():
 
         dataset_report = {}
         integrity_count = 0
+        functionality_count = 0
         total_samples = 0
         
         for base, adv_info in adv_data_map.items():
@@ -476,9 +477,10 @@ def main():
             orig_alive, orig_sys_ok = evaluator.check_integrity(orig_info["api_chain"], orig_info["trace_count"])
             
             if not is_alive or not orig_alive:
-                dataset_report[adv_info["name"]] = {"score": 0.0, "method": "INTEGRITY_FAILED", "is_functional": False}
+                dataset_report[adv_info["name"]] = {"score": 0.0, "method": "INTEGRITY_FAILED", "is_functional": False, "is_alive": False}
                 continue
                 
+            integrity_count += 1 # Passed Layer 1 Integrity Gatekeeper
             score = 0.0
             method = ""
             force_api = not orig_sys_ok
@@ -507,30 +509,33 @@ def main():
                     method = "FALLBACK_FAILED_NO_MODULE"
                     score = 0.0
                     
-            is_functional = score > THRESHOLD * 100.0 or score > THRESHOLD # Assuming max score is 100.0 or 1.0 depending on layer, wait layer 3 returns 0-100, so we use THRESHOLD * 100
-            
-            # Normalizing thresholds
-            if method in ["BINSIM_Z3", "API_SMITH_WATERMAN"]:
-                is_functional = score >= (THRESHOLD * 100.0)
+            is_functional = score >= (THRESHOLD * 100.0)
             
             if is_functional:
-                integrity_count += 1
+                functionality_count += 1
                 
             dataset_report[adv_info["name"]] = {
                 "score": score,
                 "method": method,
-                "is_functional": is_functional
+                "is_functional": is_functional,
+                "is_alive": True
             }
             
-        percentage = (integrity_count / total_samples * 100) if total_samples > 0 else 0.0
+        integrity_percentage = (integrity_count / total_samples * 100) if total_samples > 0 else 0.0
+        functionality_percentage = (functionality_count / integrity_count * 100) if integrity_count > 0 else 0.0
+        overall_percentage = (functionality_count / total_samples * 100) if total_samples > 0 else 0.0
+
         detailed_reports[dataset_name] = dataset_report
         summaries[dataset_name] = {
             "total_samples": total_samples,
             "integrity_count": integrity_count,
-            "percentage": percentage
+            "integrity_percentage": integrity_percentage,
+            "functionality_count": functionality_count,
+            "functionality_percentage": functionality_percentage,
+            "overall_functionality_percentage": overall_percentage
         }
         
-        print(f"    Total Samples: {total_samples} | Functionality Kept: {integrity_count} ({percentage:.2f}%)")
+        print(f"    Total Samples: {total_samples} | Integrity Kept: {integrity_count} ({integrity_percentage:.2f}%) | Functionality Kept: {functionality_count} ({overall_percentage:.2f}%)")
 
     print("\n[*] Saving comprehensive reports to comprehensive_detailed_reports.json")
     with open("comprehensive_detailed_reports.json", "w") as f:
