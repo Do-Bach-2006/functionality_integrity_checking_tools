@@ -466,6 +466,14 @@ def main():
         functionality_count = 0
         total_samples = 0
         
+        # Extended metrics for Q1 Paper
+        layer2_total_score = 0.0
+        layer3_total_score = 0.0
+        layer2_eval_count = 0
+        layer3_eval_count = 0
+        layer2_functional_count = 0
+        layer3_functional_count = 0
+        
         for base, adv_info in adv_data_map.items():
             if base not in baseline:
                 continue
@@ -490,6 +498,8 @@ def main():
                 try:
                     score = evaluator.run_binsim_layer(orig_info["trace_data"], adv_info["trace_data"])
                     method = "BINSIM_Z3"
+                    layer2_eval_count += 1
+                    layer2_total_score += score
                     print(f"         Layer 2 Score: {score:.2f}", flush=True)
                 except Exception as e:
                     force_api = True
@@ -502,6 +512,8 @@ def main():
                         print("         Triggering Layer 3...", flush=True)
                         score = evaluator.run_api_layer(orig_info["api_chain"], adv_info["api_chain"])
                         method = "API_SMITH_WATERMAN"
+                        layer3_eval_count += 1
+                        layer3_total_score += score
                         print(f"         Layer 3 Score: {score:.2f}", flush=True)
                     except Exception as e:
                         print(f" [!] Error in Layer 3: {e}", flush=True)
@@ -513,6 +525,10 @@ def main():
             
             if is_functional:
                 functionality_count += 1
+                if method == "BINSIM_Z3":
+                    layer2_functional_count += 1
+                elif method == "API_SMITH_WATERMAN":
+                    layer3_functional_count += 1
                 
             dataset_report[adv_info["name"]] = {
                 "score": score,
@@ -524,6 +540,10 @@ def main():
         integrity_percentage = (integrity_count / total_samples * 100) if total_samples > 0 else 0.0
         functionality_percentage = (functionality_count / integrity_count * 100) if integrity_count > 0 else 0.0
         overall_percentage = (functionality_count / total_samples * 100) if total_samples > 0 else 0.0
+        
+        # Averages for research paper
+        avg_layer2_score = (layer2_total_score / layer2_eval_count) if layer2_eval_count > 0 else 0.0
+        avg_layer3_score = (layer3_total_score / layer3_eval_count) if layer3_eval_count > 0 else 0.0
 
         detailed_reports[dataset_name] = dataset_report
         summaries[dataset_name] = {
@@ -532,10 +552,19 @@ def main():
             "integrity_percentage": integrity_percentage,
             "functionality_count": functionality_count,
             "functionality_percentage": functionality_percentage,
-            "overall_functionality_percentage": overall_percentage
+            "overall_functionality_percentage": overall_percentage,
+            "research_paper_stats": {
+                "layer2_binsim_eval_count": layer2_eval_count,
+                "layer2_functional_success": layer2_functional_count,
+                "layer2_average_score": avg_layer2_score,
+                "layer3_api_eval_count": layer3_eval_count,
+                "layer3_functional_success": layer3_functional_count,
+                "layer3_average_score": avg_layer3_score,
+            }
         }
         
         print(f"    Total Samples: {total_samples} | Integrity Kept: {integrity_count} ({integrity_percentage:.2f}%) | Functionality Kept: {functionality_count} ({overall_percentage:.2f}%)")
+        print(f"    [Research] L2 (BinSim) Evaluated: {layer2_eval_count} (Avg Score: {avg_layer2_score:.2f}) | L3 (API) Evaluated: {layer3_eval_count} (Avg Score: {avg_layer3_score:.2f})")
 
     print("\n[*] Saving comprehensive reports to comprehensive_detailed_reports.json")
     with open("comprehensive_detailed_reports.json", "w") as f:
