@@ -9,6 +9,18 @@ ORIGINAL_DATASET = "Test_full.npz"
 THRESHOLD = 0.8
 
 def get_base_name(filename):
+    if isinstance(filename, bytes):
+        filename = filename.decode('utf-8', errors='ignore')
+    elif hasattr(filename, 'item'):
+        # In case it's a numpy bytes scalar
+        val = filename.item()
+        if isinstance(val, bytes):
+            filename = val.decode('utf-8', errors='ignore')
+        else:
+            filename = str(val)
+    else:
+        filename = str(filename)
+        
     # Extract the MD5/SHA1/SHA256 hash part from the filename
     match = re.search(r'([a-fA-F0-9]{32,64})', filename)
     if match:

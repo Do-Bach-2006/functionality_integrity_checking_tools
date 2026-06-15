@@ -54,6 +54,18 @@ CRITICAL_APIS = {
 }
 
 def get_base_name(filename):
+    if isinstance(filename, bytes):
+        filename = filename.decode('utf-8', errors='ignore')
+    elif hasattr(filename, 'item'):
+        # In case it's a numpy bytes scalar
+        val = filename.item()
+        if isinstance(val, bytes):
+            filename = val.decode('utf-8', errors='ignore')
+        else:
+            filename = str(val)
+    else:
+        filename = str(filename)
+        
     match = re.search(r'([a-fA-F0-9]{32,64})', filename)
     if match:
         return match.group(1)
