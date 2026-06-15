@@ -497,7 +497,7 @@ def main():
             orig_alive, orig_sys_ok = evaluator.check_integrity(orig_info["api_chain"], orig_info["trace_count"])
             
             if not is_alive or not orig_alive:
-                dataset_report[adv_info["name"]] = {"score": 0.0, "method": "INTEGRITY_FAILED", "is_functional": False, "is_alive": False}
+                dataset_report[str(adv_info["name"])] = {"score": 0.0, "method": "INTEGRITY_FAILED", "is_functional": False, "is_alive": False}
                 continue
                 
             integrity_count += 1 # Passed Layer 1 Integrity Gatekeeper
@@ -542,7 +542,7 @@ def main():
                 elif method == "API_SMITH_WATERMAN":
                     layer3_functional_count += 1
                 
-            dataset_report[adv_info["name"]] = {
+            dataset_report[str(adv_info["name"])] = {
                 "score": score,
                 "method": method,
                 "is_functional": is_functional,

@@ -8,18 +8,18 @@ DATASETS_DIR = "datasets/APIs"
 ORIGINAL_DATASET = "Test_full.npz"
 THRESHOLD = 0.8
 
+def ensure_str(val):
+    if isinstance(val, bytes):
+        return val.decode('utf-8', errors='ignore')
+    elif hasattr(val, 'item'):
+        item_val = val.item()
+        if isinstance(item_val, bytes):
+            return item_val.decode('utf-8', errors='ignore')
+        return str(item_val)
+    return str(val)
+
 def get_base_name(filename):
-    if isinstance(filename, bytes):
-        filename = filename.decode('utf-8', errors='ignore')
-    elif hasattr(filename, 'item'):
-        # In case it's a numpy bytes scalar
-        val = filename.item()
-        if isinstance(val, bytes):
-            filename = val.decode('utf-8', errors='ignore')
-        else:
-            filename = str(val)
-    else:
-        filename = str(filename)
+    filename = ensure_str(filename)
         
     # Extract the MD5/SHA1/SHA256 hash part from the filename
     match = re.search(r'([a-fA-F0-9]{32,64})', filename)
@@ -90,13 +90,14 @@ def main():
         total_samples = 0
         
         for adv_name, sigs in zip(adv_names, adv_sigs):
+            adv_name_str = ensure_str(adv_name)
             if sigs is None:
                 sigs = []
             elif hasattr(sigs, 'tolist'):
                 sigs = sigs.tolist()
                 
             adv_sig_set = set(sigs)
-            base_name = get_base_name(adv_name)
+            base_name = get_base_name(adv_name_str)
             
             if base_name in original_signatures:
                 total_samples += 1
@@ -107,7 +108,7 @@ def main():
                 if is_functional:
                     integrity_count += 1
                     
-                dataset_report[adv_name] = {
+                dataset_report[adv_name_str] = {
                     "base_name": base_name,
                     "similarity": similarity,
                     "is_functional": is_functional,
@@ -116,7 +117,7 @@ def main():
                 }
             else:
                 # Base name not found in original dataset, skip or mark as 0
-                dataset_report[adv_name] = {
+                dataset_report[adv_name_str] = {
                     "base_name": base_name,
                     "similarity": 0.0,
                     "is_functional": False,
