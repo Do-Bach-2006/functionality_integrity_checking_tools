@@ -432,20 +432,28 @@ def main():
     detailed_reports = {}
     summaries = {}
     
-    prefixes = ['gamma', 'MAB-mal', 'Malgpt', 'OBFU-mal', 'dqef', 'gapgan', 'aimed']
+    # Dynamically find all API datasets
+    api_files = glob.glob(os.path.join(DATASETS_API_DIR, "*.npz"))
     
-    for prefix in prefixes:
-        # Match syscall and API files dynamically
-        sys_files = glob.glob(os.path.join(DATASETS_SYS_DIR, f"{prefix}_*.npz"))
-        api_files = glob.glob(os.path.join(DATASETS_API_DIR, f"{prefix}_*.npz"))
-        
-        if not sys_files or not api_files:
+    for api_file in api_files:
+        api_filename = os.path.basename(api_file)
+        if api_filename in ["Test_full.npz", "Target_full.npz"]:
             continue
             
-        sys_file = sys_files[0]
-        api_file = api_files[0]
+        # Extract prefix (e.g. 'gamma' from 'gamma_full.npz')
+        prefix = api_filename.replace("_full.npz", "").replace(".npz", "")
         
+        # Try to find the matching syscall file, handling typos like 'sycall' and case mismatches
+        syscall_pattern = re.compile(f"^{re.escape(prefix)}_sy.*\\.npz$", re.IGNORECASE)
+        matching_syscalls = [f for f in os.listdir(DATASETS_SYS_DIR) if syscall_pattern.match(f)]
+        
+        if not matching_syscalls:
+            print(f"[!] Warning: Could not find matching syscall file for {api_filename} in {DATASETS_SYS_DIR}. Skipping.")
+            continue
+            
+        sys_file = os.path.join(DATASETS_SYS_DIR, matching_syscalls[0])
         dataset_name = prefix
+
         print(f"\n[*] Processing adversarial dataset: {dataset_name}")
         
         adv_sys_data = np.load(sys_file, allow_pickle=True)
