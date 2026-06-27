@@ -424,6 +424,12 @@ def main():
         base = get_base_name(name)
         if base in baseline:
             baseline[base]["api_chain"] = extract_json_if_needed(api)
+        else:
+            baseline[base] = {
+                "trace_data": [],
+                "trace_count": 0,
+                "api_chain": extract_json_if_needed(api)
+            }
             
     print(f"    Loaded {len(baseline)} original baseline samples.")
 
@@ -480,6 +486,13 @@ def main():
             base = get_base_name(name)
             if base in adv_data_map:
                 adv_data_map[base]["api_chain"] = extract_json_if_needed(api)
+            else:
+                adv_data_map[base] = {
+                    "name": name,
+                    "trace_data": [],
+                    "trace_count": 0,
+                    "api_chain": extract_json_if_needed(api)
+                }
 
         dataset_report = {}
         integrity_count = 0
