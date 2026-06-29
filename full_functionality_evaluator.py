@@ -453,22 +453,24 @@ def main():
         syscall_pattern = re.compile(f"^{re.escape(prefix)}_sy.*\\.npz$", re.IGNORECASE)
         matching_syscalls = [f for f in os.listdir(DATASETS_SYS_DIR) if syscall_pattern.match(f)]
         
-        if not matching_syscalls:
-            print(f"[!] Warning: Could not find matching syscall file for {api_filename} in {DATASETS_SYS_DIR}. Skipping.")
-            continue
-            
-        sys_file = os.path.join(DATASETS_SYS_DIR, matching_syscalls[0])
         dataset_name = prefix
 
         print(f"\n[*] Processing adversarial dataset: {dataset_name}")
         
-        adv_sys_data = np.load(sys_file, allow_pickle=True)
+        adv_sys_names = []
+        adv_sys_traces = []
+        adv_sys_counts = []
+
+        if not matching_syscalls:
+            print(f"    [!] Warning: Could not find matching syscall file for {api_filename}. Relying solely on API data.")
+        else:
+            sys_file = os.path.join(DATASETS_SYS_DIR, matching_syscalls[0])
+            adv_sys_data = np.load(sys_file, allow_pickle=True)
+            adv_sys_names = get_features(adv_sys_data, ['name'], 0)
+            adv_sys_traces = get_features(adv_sys_data, ['trace_data'], len(adv_sys_names))
+            adv_sys_counts = get_features(adv_sys_data, ['trace_count'], len(adv_sys_names))
+        
         adv_api_data = np.load(api_file, allow_pickle=True)
-        
-        adv_sys_names = get_features(adv_sys_data, ['name'], 0)
-        adv_sys_traces = get_features(adv_sys_data, ['trace_data'], len(adv_sys_names))
-        adv_sys_counts = get_features(adv_sys_data, ['trace_count'], len(adv_sys_names))
-        
         adv_api_names = get_features(adv_api_data, ['name'], 0)
         adv_api_chains = get_features(adv_api_data, ['api_cuckoo', 'api'], len(adv_api_names))
         
@@ -507,12 +509,18 @@ def main():
         layer2_functional_count = 0
         layer3_functional_count = 0
         
-        for base, adv_info in adv_data_map.items():
-            if base not in baseline:
-                continue
-                
+        for base, orig_info in baseline.items():
             total_samples += 1
-            orig_info = baseline[base]
+            
+            if base in adv_data_map:
+                adv_info = adv_data_map[base]
+            else:
+                adv_info = {
+                    "name": base,
+                    "trace_data": [],
+                    "trace_count": 0,
+                    "api_chain": []
+                }
             
             is_alive, adv_sys_ok = evaluator.check_integrity(adv_info["api_chain"], adv_info["trace_count"])
             orig_alive, orig_sys_ok = evaluator.check_integrity(orig_info["api_chain"], orig_info["trace_count"])
